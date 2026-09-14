@@ -43,6 +43,13 @@ MARCAS_QUARTZO = ["Silestone", "RoyalStone", "Compac", "Outros"]
 MARCAS_CERAMICA = ["Dekton", "Ascale", "Neolith", "Outros"]
 ESTADOS = ["Disponível", "Reservado"]
 
+# Chaves dos campos do formulário de inserção, usadas para os limpar quando pedido
+CAMPOS_FORMULARIO = [
+    "material_novo", "marca_novo", "designacao_novo", "encomenda_novo",
+    "altura_novo", "comprimento_novo", "espessura_novo",
+    "localizacao_novo", "estado_novo", "observacoes_novo"
+]
+
 st.title("Ferramenta de Gestão de Stock")
 
 # --- Se a app foi aberta a partir de um QR code, mostra logo esse remanescente ---
@@ -74,36 +81,41 @@ if codigo_pesquisado:
 # =========================================================
 st.header("Inserir novo remanescente")
 
-# Material e Marca ficam FORA do formulário, porque a marca depende
-# do material escolhido, e isso só atualiza em tempo real fora de um form.
-material = st.selectbox("Material", MATERIAIS, key="material_novo")
+# Se foi pedido para limpar o formulário (botão "Adicionar outro"), apaga os
+# valores guardados ANTES de criar os campos, para eles nascerem vazios.
+if st.session_state.get("limpar_formulario"):
+    for chave in CAMPOS_FORMULARIO:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.session_state["limpar_formulario"] = False
 
-if material == "Quartzo":
-    marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
-elif material == "Cerâmica":
-    marca = st.selectbox("Marca", MARCAS_CERAMICA, key="marca_novo")
-else:
-    marca = st.text_input("Marca", key="marca_novo")
+with st.container(border=True):
+    material = st.selectbox("Material", MATERIAIS, key="material_novo")
 
-with st.form("form_remanescente", clear_on_submit=True):
-    designacao = st.text_input("Designação")
-    numero_encomenda = st.text_input("Order Number")
+    if material == "Quartzo":
+        marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
+    elif material == "Cerâmica":
+        marca = st.selectbox("Marca", MARCAS_CERAMICA, key="marca_novo")
+    else:
+        marca = st.text_input("Marca", key="marca_novo")
+
+    designacao = st.text_input("Designação", key="designacao_novo")
+    numero_encomenda = st.text_input("Order Number", key="encomenda_novo")
 
     col1, col2, col3 = st.columns(3)
     with col2:
-        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None)
+        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None, key="altura_novo")
     with col1:
-        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None)
+        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None, key="comprimento_novo")
     with col3:
-        espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None)
+        espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None, key="espessura_novo")
 
-    localizacao = st.text_input("Localização")
-    estado = st.selectbox("Estado", ESTADOS)
-    observacoes = st.text_area("Observações")
+    localizacao = st.text_input("Localização", key="localizacao_novo")
+    estado = st.selectbox("Estado", ESTADOS, key="estado_novo")
+    observacoes = st.text_area("Observações", key="observacoes_novo")
 
-    submitted = st.form_submit_button("Guardar remanescente")
+    submitted = st.button("Guardar remanescente")
 
-# --- A partir daqui já está FORA do formulário ---
 if submitted:
     if designacao.strip() == "":
         st.error("A designação é obrigatória.")
@@ -176,14 +188,30 @@ if submitted:
         """
         components.html(print_html, height=60)
 
+        if st.button("➕ Adicionar outro remanescente (limpar campos)"):
+            st.session_state["limpar_formulario"] = True
+            st.rerun()
+
 # =========================================================
 # PESQUISAR, EDITAR E ELIMINAR
 # =========================================================
 st.header("Remanescentes em stock")
 
+col_filtro1, col_filtro2 = st.columns(2)
+with col_filtro1:
+    filtro_material = st.multiselect("Filtrar por material", MATERIAIS)
+with col_filtro2:
+    filtro_estado = st.multiselect("Filtrar por estado", ESTADOS)
+
 pesquisa = st.text_input("Pesquisar (código, material, marca, designação, encomenda ou localização)")
 
 df = pd.read_sql_query("SELECT * FROM remanescentes WHERE ativo = 1", conn)
+
+if filtro_material:
+    df = df[df["material"].isin(filtro_material)]
+
+if filtro_estado:
+    df = df[df["estado"].isin(filtro_estado)]
 
 if pesquisa.strip() != "":
     termo = pesquisa.lower()
@@ -219,7 +247,6 @@ if st.button("Guardar alterações"):
     ids_originais = set(df["id"])
     ids_editados = set(df_editado["id"].dropna())
 
-    # Linhas que foram apagadas na tabela -> marcar como inativas + gravar data de uso
     ids_removidos = ids_originais - ids_editados
     for id_remov in ids_removidos:
         cursor.execute(
@@ -227,10 +254,9 @@ if st.button("Guardar alterações"):
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(id_remov))
         )
 
-    # Linhas que continuam -> atualizar com os valores editados
     for _, linha in df_editado.iterrows():
         if pd.isna(linha["id"]):
-            continue  # ignora linhas novas criadas sem querer com o "+"
+            continue
         cursor.execute("""
             UPDATE remanescentes
             SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?, estado = ?
