@@ -81,8 +81,6 @@ if codigo_pesquisado:
 # =========================================================
 st.header("Inserir novo remanescente")
 
-# Se foi pedido para limpar o formulário (botão "Adicionar outro"), apaga os
-# valores guardados ANTES de criar os campos, para eles nascerem vazios.
 if st.session_state.get("limpar_formulario"):
     for chave in CAMPOS_FORMULARIO:
         if chave in st.session_state:
@@ -114,7 +112,15 @@ with st.container(border=True):
     estado = st.selectbox("Estado", ESTADOS, key="estado_novo")
     observacoes = st.text_area("Observações", key="observacoes_novo")
 
-    submitted = st.button("Guardar remanescente")
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        submitted = st.button("Guardar remanescente")
+    with col_btn2:
+        limpar = st.button("➕ Adicionar outro remanescente")
+
+if limpar:
+    st.session_state["limpar_formulario"] = True
+    st.rerun()
 
 if submitted:
     if designacao.strip() == "":
@@ -188,30 +194,14 @@ if submitted:
         """
         components.html(print_html, height=60)
 
-        if st.button("➕ Adicionar outro remanescente (limpar campos)"):
-            st.session_state["limpar_formulario"] = True
-            st.rerun()
-
 # =========================================================
 # PESQUISAR, EDITAR E ELIMINAR
 # =========================================================
 st.header("Remanescentes em stock")
 
-col_filtro1, col_filtro2 = st.columns(2)
-with col_filtro1:
-    filtro_material = st.multiselect("Filtrar por material", MATERIAIS)
-with col_filtro2:
-    filtro_estado = st.multiselect("Filtrar por estado", ESTADOS)
-
 pesquisa = st.text_input("Pesquisar (código, material, marca, designação, encomenda ou localização)")
 
 df = pd.read_sql_query("SELECT * FROM remanescentes WHERE ativo = 1", conn)
-
-if filtro_material:
-    df = df[df["material"].isin(filtro_material)]
-
-if filtro_estado:
-    df = df[df["estado"].isin(filtro_estado)]
 
 if pesquisa.strip() != "":
     termo = pesquisa.lower()
