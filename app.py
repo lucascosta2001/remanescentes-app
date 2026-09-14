@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS remanescentes (
     codigo TEXT UNIQUE,
     numero_encomenda TEXT,
     material TEXT,
+    marca TEXT,
     designacao TEXT,
     altura REAL,
     comprimento REAL,
@@ -51,6 +52,7 @@ if codigo_pesquisado:
         info = dict(zip(colunas, resultado))
         st.success(f"📦 Remanescente encontrado: {info['codigo']}")
         st.write(f"**Material:** {info['material']}")
+        st.write(f"**Marca:** {info['marca']}")
         st.write(f"**Designação:** {info['designacao']}")
         st.write(f"**Dimensões:** {info['altura']} x {info['comprimento']} x {info['espessura']} cm")
         st.write(f"**Localização:** {info['localizacao']}")
@@ -64,11 +66,12 @@ if codigo_pesquisado:
 # =========================================================
 # INSERIR NOVO REMANESCENTE
 # =========================================================
-st.header("Inserir novo bocado")
+st.header("Inserir novo remanescente")
 
 with st.form("form_remanescente", clear_on_submit=True):
     material = st.selectbox("Material", MATERIAIS)
     designacao = st.text_input("Designação")
+    marca = st.text_input("Marca")
     numero_encomenda = st.text_input("Order Number")
 
     col1, col2, col3 = st.columns(3)
@@ -91,9 +94,9 @@ if submitted:
     else:
         cursor.execute("""
             INSERT INTO remanescentes
-            (numero_encomenda, material, designacao, altura, comprimento, espessura, localizacao, observacoes, data_criacao)
+            (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, data_criacao)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (numero_encomenda, material, designacao, altura, comprimento, espessura, localizacao, observacoes,
+        """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         novo_id = cursor.lastrowid
@@ -170,6 +173,7 @@ if pesquisa.strip() != "":
     df = df[
         df["codigo"].str.lower().str.contains(termo, na=False) |
         df["material"].str.lower().str.contains(termo, na=False) |
+        df["marca"].str.lower().str.contains(termo, na=False) |
         df["designacao"].str.lower().str.contains(termo, na=False) |
         df["numero_encomenda"].fillna("").str.lower().str.contains(termo) |
         df["localizacao"].fillna("").str.lower().str.contains(termo)
@@ -209,7 +213,7 @@ if st.button("Guardar alterações"):
             UPDATE remanescentes
             SET material = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?
             WHERE id = ?
-        """, (linha["material"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
+        """, (linha["material"], linha["marca"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
               linha["espessura"], linha["localizacao"], linha["observacoes"], int(linha["id"])))
 
     conn.commit()
