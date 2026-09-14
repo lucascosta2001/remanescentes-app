@@ -96,7 +96,7 @@ if submitted:
             INSERT INTO remanescentes
             (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, data_criacao)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (Order Number, Material, Marca, Designacao, Altura, Comprimento, Espessura, Localizacao, Observacoes,
+        """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         novo_id = cursor.lastrowid
@@ -211,7 +211,7 @@ if st.button("Guardar alterações"):
             continue  # ignora linhas novas criadas sem querer com o "+"
         cursor.execute("""
             UPDATE remanescentes
-            SET material = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?
+            SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?
             WHERE id = ?
         """, (linha["material"], linha["marca"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
               linha["espessura"], linha["localizacao"], linha["observacoes"], int(linha["id"])))
