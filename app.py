@@ -40,7 +40,7 @@ st.title("Ferramenta de Gestão de Stock")
 # =========================================================
 # INSERIR NOVO REMANESCENTE
 # =========================================================
-st.header("Inserir novo remanescente")
+st.header("Inserir novo bocado")
 
 with st.form("form_remanescente", clear_on_submit=True):
     material = st.selectbox("Material", MATERIAIS)
@@ -49,11 +49,11 @@ with st.form("form_remanescente", clear_on_submit=True):
 
     col1, col2, col3 = st.columns(3)
     with col2:
-        altura = st.number_input("Altura (mm)", min_value=0.0, step=0.1)
+        altura = st.number_input("Altura (mm)", min_value=0, step=1)
     with col1:
-        comprimento = st.number_input("Comprimento (mm)", min_value=0.0, step=0.1)
+        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1)
     with col3:
-        espessura = st.number_input("Espessura (mm)", min_value=0.0, step=0.1)
+        espessura = st.number_input("Espessura (mm)", min_value=0, step=1)
 
     localizacao = st.text_input("Localização")
     observacoes = st.text_area("Observações")
