@@ -76,11 +76,11 @@ with st.form("form_remanescente", clear_on_submit=True):
 
     col1, col2, col3 = st.columns(3)
     with col2:
-        altura = st.number_input("Altura (mm)", min_value=0, step=1)
+        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None)
     with col1:
-        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1)
+        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None)
     with col3:
-        espessura = st.number_input("Espessura (mm)", min_value=0, step=1)
+        espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None)
 
     localizacao = st.text_input("Localização")
     observacoes = st.text_area("Observações")
@@ -91,6 +91,8 @@ with st.form("form_remanescente", clear_on_submit=True):
 if submitted:
     if designacao.strip() == "":
         st.error("A designação é obrigatória.")
+    elif altura is None or comprimento is None or espessura is None:
+        st.error("Preenche todas as medidas (altura, comprimento e espessura).")
     else:
         cursor.execute("""
             INSERT INTO remanescentes
