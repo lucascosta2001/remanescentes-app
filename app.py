@@ -88,7 +88,7 @@ if st.session_state.get("limpar_formulario"):
     st.session_state["limpar_formulario"] = False
 
 with st.container(border=True):
-        col_mat, col_marca = st.columns(2)
+    col_mat, col_marca = st.columns(2)
     with col_mat:
         material = st.selectbox("Material", MATERIAIS, key="material_novo")
     with col_marca:
@@ -126,7 +126,7 @@ with st.container(border=True):
         submitted = st.button("Guardar remanescente")
     with col_btn2:
         limpar = st.button("➕ Adicionar outro remanescente")
-
+        
 if limpar:
     st.session_state["limpar_formulario"] = True
     st.rerun()
