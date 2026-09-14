@@ -95,8 +95,8 @@ if submitted:
         cursor.execute("""
             INSERT INTO remanescentes
             (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, data_criacao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (Order Number, Material, Marca, Designacao, Altura, Comprimento, Espessura, Localizacao, Observacoes,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         novo_id = cursor.lastrowid
