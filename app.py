@@ -70,8 +70,8 @@ st.header("Inserir novo remanescente")
 
 with st.form("form_remanescente", clear_on_submit=True):
     material = st.selectbox("Material", MATERIAIS)
-    designacao = st.text_input("Designação")
     marca = st.text_input("Marca")
+    designacao = st.text_input("Designação")
     numero_encomenda = st.text_input("Order Number")
 
     col1, col2, col3 = st.columns(3)
