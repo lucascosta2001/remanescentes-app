@@ -91,7 +91,7 @@ if st.session_state.get("limpar_formulario"):
 with st.container(border=True):
     col_mat, col_marca = st.columns(2)
     with col_mat:
-        material = st.selectbox("Material", MATERIAIS, key="material_novo")
+        material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
     with col_marca:
         if material == "Quartzo":
             marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
@@ -125,7 +125,9 @@ with st.container(border=True):
     submitted = st.button("Guardar remanescente")
 
 if submitted:
-    if designacao.strip() == "":
+    if material is None:
+        st.error("Escolhe um material.")
+    elif designacao.strip() == "":
         st.error("A designação é obrigatória.")
     elif altura is None or comprimento is None or espessura is None:
         st.error("Preenche todas as medidas (altura, comprimento e espessura).")
