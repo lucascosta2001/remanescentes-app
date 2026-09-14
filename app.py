@@ -7,6 +7,8 @@ import os
 import base64
 import streamlit.components.v1 as components
 
+APP_URL = "https://remanescentes-app-yjfbvyavhczpmccg4mckur.streamlit.app"
+
 # Pasta onde ficam guardadas as imagens dos QR codes
 os.makedirs("qrcodes", exist_ok=True)
 
@@ -36,6 +38,28 @@ conn.commit()
 MATERIAIS = ["Mármore", "Granito", "Quartzo", "Cerâmica", "Outros"]
 
 st.title("Ferramenta de Gestão de Stock")
+
+# --- Se a app foi aberta a partir de um QR code, mostra logo esse remanescente ---
+codigo_pesquisado = st.query_params.get("codigo")
+
+if codigo_pesquisado:
+    cursor.execute("SELECT * FROM remanescentes WHERE codigo = ? AND ativo = 1", (codigo_pesquisado,))
+    colunas = [desc[0] for desc in cursor.description]
+    resultado = cursor.fetchone()
+
+    if resultado:
+        info = dict(zip(colunas, resultado))
+        st.success(f"📦 Remanescente encontrado: {info['codigo']}")
+        st.write(f"**Material:** {info['material']}")
+        st.write(f"**Designação:** {info['designacao']}")
+        st.write(f"**Dimensões:** {info['altura']} x {info['comprimento']} x {info['espessura']} cm")
+        st.write(f"**Localização:** {info['localizacao']}")
+        if info['observacoes']:
+            st.write(f"**Observações:** {info['observacoes']}")
+        st.divider()
+    else:
+        st.warning(f"Não foi encontrado nenhum remanescente ativo com o código '{codigo_pesquisado}'.")
+        st.divider()
 
 # =========================================================
 # INSERIR NOVO REMANESCENTE
@@ -82,7 +106,7 @@ if submitted:
         # --- Gerar QR Code (versão para imprimir, com etiqueta) ---
         from PIL import Image, ImageDraw, ImageFont
 
-        qr_data = f"Codigo: {codigo_gerado} | Material: {material} | Designacao: {designacao} | Localizacao: {localizacao}"
+        qr_data = f"{APP_URL}/?codigo={codigo_gerado}"
 
         qr = qrcode.QRCode(box_size=10, border=4)
         qr.add_data(qr_data)
