@@ -35,7 +35,7 @@ conn.commit()
 # --- LISTA DE MATERIAIS ---
 MATERIAIS = ["Mármore", "Granito", "Quartzo", "Cerâmica", "Outros"]
 
-st.title("Ferramenta de Gestão de Remanescentes")
+st.title("Ferramenta de Gestão de Stock")
 
 # =========================================================
 # INSERIR NOVO REMANESCENTE
@@ -45,15 +45,15 @@ st.header("Inserir novo remanescente")
 with st.form("form_remanescente", clear_on_submit=True):
     material = st.selectbox("Material", MATERIAIS)
     designacao = st.text_input("Designação")
-    numero_encomenda = st.text_input("Nº de encomenda do fornecedor (cor) — opcional")
+    numero_encomenda = st.text_input("Order Number")
 
     col1, col2, col3 = st.columns(3)
-    with col1:
-        altura = st.number_input("Altura (cm)", min_value=0.0, step=0.1)
     with col2:
-        comprimento = st.number_input("Comprimento (cm)", min_value=0.0, step=0.1)
+        altura = st.number_input("Altura (mm)", min_value=0.0, step=0.1)
+    with col1:
+        comprimento = st.number_input("Comprimento (mm)", min_value=0.0, step=0.1)
     with col3:
-        espessura = st.number_input("Espessura (cm)", min_value=0.0, step=0.1)
+        espessura = st.number_input("Espessura (mm)", min_value=0.0, step=0.1)
 
     localizacao = st.text_input("Localização")
     observacoes = st.text_area("Observações")
