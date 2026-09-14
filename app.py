@@ -29,14 +29,19 @@ CREATE TABLE IF NOT EXISTS remanescentes (
     espessura REAL,
     localizacao TEXT,
     observacoes TEXT,
+    estado TEXT DEFAULT 'Disponível',
     data_criacao TEXT,
+    data_uso TEXT,
     ativo INTEGER DEFAULT 1
 )
 """)
 conn.commit()
 
-# --- LISTA DE MATERIAIS ---
+# --- LISTAS DE OPÇÕES ---
 MATERIAIS = ["Mármore", "Granito", "Quartzo", "Cerâmica", "Outros"]
+MARCAS_QUARTZO = ["Silestone", "RoyalStone", "Compac", "Outros"]
+MARCAS_CERAMICA = ["Dekton", "Ascale", "Neolith", "Outros"]
+ESTADOS = ["Disponível", "Reservado"]
 
 st.title("Ferramenta de Gestão de Stock")
 
@@ -54,8 +59,9 @@ if codigo_pesquisado:
         st.write(f"**Material:** {info['material']}")
         st.write(f"**Marca:** {info['marca']}")
         st.write(f"**Designação:** {info['designacao']}")
-        st.write(f"**Dimensões:** {info['altura']} x {info['comprimento']} x {info['espessura']} cm")
+        st.write(f"**Dimensões:** {info['altura']} x {info['comprimento']} x {info['espessura']} mm")
         st.write(f"**Localização:** {info['localizacao']}")
+        st.write(f"**Estado:** {info['estado']}")
         if info['observacoes']:
             st.write(f"**Observações:** {info['observacoes']}")
         st.divider()
@@ -68,9 +74,18 @@ if codigo_pesquisado:
 # =========================================================
 st.header("Inserir novo remanescente")
 
+# Material e Marca ficam FORA do formulário, porque a marca depende
+# do material escolhido, e isso só atualiza em tempo real fora de um form.
+material = st.selectbox("Material", MATERIAIS, key="material_novo")
+
+if material == "Quartzo":
+    marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
+elif material == "Cerâmica":
+    marca = st.selectbox("Marca", MARCAS_CERAMICA, key="marca_novo")
+else:
+    marca = st.text_input("Marca", key="marca_novo")
+
 with st.form("form_remanescente", clear_on_submit=True):
-    material = st.selectbox("Material", MATERIAIS)
-    marca = st.text_input("Marca")
     designacao = st.text_input("Designação")
     numero_encomenda = st.text_input("Order Number")
 
@@ -83,6 +98,7 @@ with st.form("form_remanescente", clear_on_submit=True):
         espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None)
 
     localizacao = st.text_input("Localização")
+    estado = st.selectbox("Estado", ESTADOS)
     observacoes = st.text_area("Observações")
 
     submitted = st.form_submit_button("Guardar remanescente")
@@ -96,9 +112,9 @@ if submitted:
     else:
         cursor.execute("""
             INSERT INTO remanescentes
-            (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, data_criacao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes,
+            (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado, data_criacao)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         novo_id = cursor.lastrowid
@@ -140,7 +156,6 @@ if submitted:
 
         st.image(caminho_qr, caption=f"QR Code - {codigo_gerado}", width=250)
 
-
         # --- Botão para imprimir diretamente ---
         with open(caminho_qr, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode()
@@ -166,7 +181,7 @@ if submitted:
 # =========================================================
 st.header("Remanescentes em stock")
 
-pesquisa = st.text_input("Pesquisar (código, material, designação, encomenda ou localização)")
+pesquisa = st.text_input("Pesquisar (código, material, marca, designação, encomenda ou localização)")
 
 df = pd.read_sql_query("SELECT * FROM remanescentes WHERE ativo = 1", conn)
 
@@ -175,13 +190,13 @@ if pesquisa.strip() != "":
     df = df[
         df["codigo"].str.lower().str.contains(termo, na=False) |
         df["material"].str.lower().str.contains(termo, na=False) |
-        df["marca"].str.lower().str.contains(termo, na=False) |
+        df["marca"].fillna("").str.lower().str.contains(termo) |
         df["designacao"].str.lower().str.contains(termo, na=False) |
         df["numero_encomenda"].fillna("").str.lower().str.contains(termo) |
         df["localizacao"].fillna("").str.lower().str.contains(termo)
     ]
 
-st.caption("Faz duplo clique numa célula para editar. Para apagar uma linha, clica no quadrado à esquerda dela e depois no ícone do caixote do lixo. No fim, carrega em 'Guardar alterações'.")
+st.caption("Faz duplo clique numa célula para editar. Para apagar uma linha (marcar como usada), clica no quadrado à esquerda dela e depois no ícone do caixote do lixo. No fim, carrega em 'Guardar alterações'.")
 
 df_editado = st.data_editor(
     df,
@@ -192,9 +207,11 @@ df_editado = st.data_editor(
     column_config={
         "id": None,
         "ativo": None,
+        "data_uso": None,
         "codigo": st.column_config.TextColumn("Código", disabled=True),
         "data_criacao": st.column_config.TextColumn("Data de criação", disabled=True),
         "material": st.column_config.SelectboxColumn("Material", options=MATERIAIS),
+        "estado": st.column_config.SelectboxColumn("Estado", options=ESTADOS),
     }
 )
 
@@ -202,10 +219,13 @@ if st.button("Guardar alterações"):
     ids_originais = set(df["id"])
     ids_editados = set(df_editado["id"].dropna())
 
-    # Linhas que foram apagadas na tabela -> marcar como inativas
+    # Linhas que foram apagadas na tabela -> marcar como inativas + gravar data de uso
     ids_removidos = ids_originais - ids_editados
     for id_remov in ids_removidos:
-        cursor.execute("UPDATE remanescentes SET ativo = 0 WHERE id = ?", (int(id_remov),))
+        cursor.execute(
+            "UPDATE remanescentes SET ativo = 0, data_uso = ? WHERE id = ?",
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(id_remov))
+        )
 
     # Linhas que continuam -> atualizar com os valores editados
     for _, linha in df_editado.iterrows():
@@ -213,11 +233,27 @@ if st.button("Guardar alterações"):
             continue  # ignora linhas novas criadas sem querer com o "+"
         cursor.execute("""
             UPDATE remanescentes
-            SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?
+            SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?, estado = ?
             WHERE id = ?
         """, (linha["material"], linha["marca"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
-              linha["espessura"], linha["localizacao"], linha["observacoes"], int(linha["id"])))
+              linha["espessura"], linha["localizacao"], linha["observacoes"], linha["estado"], int(linha["id"])))
 
     conn.commit()
     st.success("Alterações guardadas!")
     st.rerun()
+
+# =========================================================
+# HISTÓRICO DE REMANESCENTES USADOS
+# =========================================================
+st.header("Histórico de remanescentes usados")
+
+df_historico = pd.read_sql_query(
+    "SELECT codigo, material, marca, designacao, altura, comprimento, espessura, localizacao, data_criacao, data_uso "
+    "FROM remanescentes WHERE ativo = 0 ORDER BY data_uso DESC",
+    conn
+)
+
+if df_historico.empty:
+    st.info("Ainda não há remanescentes usados.")
+else:
+    st.dataframe(df_historico, use_container_width=True, hide_index=True)
