@@ -1,4 +1,4 @@
-import streamlit as st
+impoimport streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
@@ -6,6 +6,7 @@ import qrcode
 import os
 import base64
 import streamlit.components.v1 as components
+from PIL import Image, ImageDraw, ImageFont
 
 APP_URL = "https://remanescentes-app-yjfbvyavhczpmccg4mckur.streamlit.app"
 
@@ -43,7 +44,7 @@ MARCAS_QUARTZO = ["Silestone", "RoyalStone", "Compac", "Outros"]
 MARCAS_CERAMICA = ["Dekton", "Ascale", "Neolith", "Outros"]
 ESTADOS = ["Disponível", "Reservado"]
 
-# Chaves dos campos do formulário de inserção, usadas para os limpar quando pedido
+# Chaves dos campos do formulário de inserção, usadas para os limpar depois de guardar
 CAMPOS_FORMULARIO = [
     "material_novo", "marca_novo", "designacao_novo", "encomenda_novo",
     "altura_novo", "comprimento_novo", "espessura_novo",
@@ -121,15 +122,7 @@ with st.container(border=True):
 
     observacoes = st.text_area("Observações", key="observacoes_novo")
 
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        submitted = st.button("Guardar remanescente")
-    with col_btn2:
-        limpar = st.button("➕ Adicionar outro remanescente")
-        
-if limpar:
-    st.session_state["limpar_formulario"] = True
-    st.rerun()
+    submitted = st.button("Guardar remanescente")
 
 if submitted:
     if designacao.strip() == "":
@@ -149,11 +142,7 @@ if submitted:
         cursor.execute("UPDATE remanescentes SET codigo = ? WHERE id = ?", (codigo_gerado, novo_id))
         conn.commit()
 
-        st.success(f"Remanescente guardado com o código '{codigo_gerado}'!")
-
         # --- Gerar QR Code (versão para imprimir, com etiqueta) ---
-        from PIL import Image, ImageDraw, ImageFont
-
         qr_data = f"{APP_URL}/?codigo={codigo_gerado}"
 
         qr = qrcode.QRCode(box_size=10, border=4)
@@ -181,9 +170,21 @@ if submitted:
         caminho_qr = f"qrcodes/{codigo_gerado}.png"
         etiqueta.save(caminho_qr)
 
-        st.image(caminho_qr, caption=f"QR Code - {codigo_gerado}", width=250)
+        # Guarda o código do último remanescente guardado, para o mostrar
+        # depois do "rerun" (os campos do formulário limpam-se ao mesmo tempo)
+        st.session_state["ultimo_codigo"] = codigo_gerado
+        st.session_state["limpar_formulario"] = True
+        st.rerun()
 
-        # --- Botão para imprimir diretamente ---
+# --- Mostra o resultado do último remanescente guardado (QR code + imprimir) ---
+if st.session_state.get("ultimo_codigo"):
+    codigo_mostrar = st.session_state["ultimo_codigo"]
+    caminho_qr = f"qrcodes/{codigo_mostrar}.png"
+
+    if os.path.exists(caminho_qr):
+        st.success(f"Remanescente guardado com o código '{codigo_mostrar}'!")
+        st.image(caminho_qr, caption=f"QR Code - {codigo_mostrar}", width=250)
+
         with open(caminho_qr, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode()
 
