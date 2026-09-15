@@ -2,3 +2,4 @@ streamlit
 pandas
 qrcode
 pillow
+psycopg2-binary

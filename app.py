@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+import psycopg2
 import pandas as pd
 from datetime import datetime
 import qrcode
@@ -13,13 +13,17 @@ APP_URL = "https://remanescentes-app-yjfbvyavhczpmccg4mckur.streamlit.app"
 # Pasta onde ficam guardadas as imagens dos QR codes
 os.makedirs("qrcodes", exist_ok=True)
 
-# --- Ligação à base de dados ---
-conn = sqlite3.connect("remanescentes.db", check_same_thread=False)
+# --- Ligação à base de dados (Supabase / PostgreSQL) ---
+@st.cache_resource
+def get_connection():
+    return psycopg2.connect(st.secrets["DATABASE_URL"])
+
+conn = get_connection()
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS remanescentes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     codigo TEXT UNIQUE,
     numero_encomenda TEXT,
     material TEXT,
@@ -57,7 +61,7 @@ st.title("Ferramenta de Gestão de Stock")
 codigo_pesquisado = st.query_params.get("codigo")
 
 if codigo_pesquisado:
-    cursor.execute("SELECT * FROM remanescentes WHERE codigo = ? AND ativo = 1", (codigo_pesquisado,))
+    cursor.execute("SELECT * FROM remanescentes WHERE codigo = %s AND ativo = 1", (codigo_pesquisado,))
     colunas = [desc[0] for desc in cursor.description]
     resultado = cursor.fetchone()
 
@@ -135,13 +139,14 @@ if submitted:
         cursor.execute("""
             INSERT INTO remanescentes
             (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado, data_criacao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-        novo_id = cursor.lastrowid
+        novo_id = cursor.fetchone()[0]
         codigo_gerado = f"REM-{novo_id:04d}"
-        cursor.execute("UPDATE remanescentes SET codigo = ? WHERE id = ?", (codigo_gerado, novo_id))
+        cursor.execute("UPDATE remanescentes SET codigo = %s WHERE id = %s", (codigo_gerado, novo_id))
         conn.commit()
 
         # --- Gerar QR Code (versão para imprimir, com etiqueta) ---
@@ -172,8 +177,6 @@ if submitted:
         caminho_qr = f"qrcodes/{codigo_gerado}.png"
         etiqueta.save(caminho_qr)
 
-        # Guarda o código do último remanescente guardado, para o mostrar
-        # depois do "rerun" (os campos do formulário limpam-se ao mesmo tempo)
         st.session_state["ultimo_codigo"] = codigo_gerado
         st.session_state["limpar_formulario"] = True
         st.rerun()
@@ -252,7 +255,7 @@ if st.button("Guardar alterações"):
     ids_removidos = ids_originais - ids_editados
     for id_remov in ids_removidos:
         cursor.execute(
-            "UPDATE remanescentes SET ativo = 0, data_uso = ? WHERE id = ?",
+            "UPDATE remanescentes SET ativo = 0, data_uso = %s WHERE id = %s",
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(id_remov))
         )
 
@@ -261,8 +264,8 @@ if st.button("Guardar alterações"):
             continue
         cursor.execute("""
             UPDATE remanescentes
-            SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?, estado = ?
-            WHERE id = ?
+            SET material = %s, marca = %s, designacao = %s, numero_encomenda = %s, altura = %s, comprimento = %s, espessura = %s, localizacao = %s, observacoes = %s, estado = %s
+            WHERE id = %s
         """, (linha["material"], linha["marca"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
               linha["espessura"], linha["localizacao"], linha["observacoes"], linha["estado"], int(linha["id"])))
 
