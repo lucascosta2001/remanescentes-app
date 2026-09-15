@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+import psycopg2
 import pandas as pd
 from datetime import datetime
 import qrcode
@@ -13,13 +13,17 @@ APP_URL = "https://remanescentes-app-yjfbvyavhczpmccg4mckur.streamlit.app"
 # Pasta onde ficam guardadas as imagens dos QR codes
 os.makedirs("qrcodes", exist_ok=True)
 
-# --- Ligação à base de dados ---
-conn = sqlite3.connect("remanescentes.db", check_same_thread=False)
+# --- Ligação à base de dados (Supabase / PostgreSQL) ---
+@st.cache_resource
+def get_connection():
+    return psycopg2.connect(st.secrets["DATABASE_URL"])
+
+conn = get_connection()
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS remanescentes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     codigo TEXT UNIQUE,
     numero_encomenda TEXT,
     material TEXT,
@@ -57,7 +61,7 @@ st.title("Ferramenta de Gestão de Stock")
 codigo_pesquisado = st.query_params.get("codigo")
 
 if codigo_pesquisado:
-    cursor.execute("SELECT * FROM remanescentes WHERE codigo = ? AND ativo = 1", (codigo_pesquisado,))
+    cursor.execute("SELECT * FROM remanescentes WHERE codigo = %s AND ativo = 1", (codigo_pesquisado,))
     colunas = [desc[0] for desc in cursor.description]
     resultado = cursor.fetchone()
 
@@ -91,12 +95,12 @@ if st.session_state.get("limpar_formulario"):
 with st.container(border=True):
     col_mat, col_marca = st.columns(2)
     with col_mat:
-               material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
+        material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
     with col_marca:
         if material == "Quartzo":
-            marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
+            marca = st.selectbox("Marca", MARCAS_QUARTZO, index=None, placeholder="Selecionar Marca", key="marca_novo")
         elif material == "Cerâmica":
-            marca = st.selectbox("Marca", MARCAS_CERAMICA, key="marca_novo")
+            marca = st.selectbox("Marca", MARCAS_CERAMICA, index=None, placeholder="Selecionar Marca", key="marca_novo")
         else:
             marca = st.text_input("Marca", key="marca_novo")
 
@@ -107,10 +111,10 @@ with st.container(border=True):
         numero_encomenda = st.text_input("Order Number", key="encomenda_novo")
 
     col1, col2, col3 = st.columns(3)
-    with col2:
-        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None, key="altura_novo")
     with col1:
         comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None, key="comprimento_novo")
+    with col2:
+        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None, key="altura_novo")
     with col3:
         espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None, key="espessura_novo")
 
@@ -127,6 +131,8 @@ with st.container(border=True):
 if submitted:
     if material is None:
         st.error("Escolhe um material.")
+    elif material in ("Quartzo", "Cerâmica") and marca is None:
+        st.error("Escolhe uma marca.")
     elif designacao.strip() == "":
         st.error("A designação é obrigatória.")
     elif altura is None or comprimento is None or espessura is None:
@@ -135,13 +141,14 @@ if submitted:
         cursor.execute("""
             INSERT INTO remanescentes
             (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado, data_criacao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (numero_encomenda, material, marca, designacao, altura, comprimento, espessura, localizacao, observacoes, estado,
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-        novo_id = cursor.lastrowid
+        novo_id = cursor.fetchone()[0]
         codigo_gerado = f"REM-{novo_id:04d}"
-        cursor.execute("UPDATE remanescentes SET codigo = ? WHERE id = ?", (codigo_gerado, novo_id))
+        cursor.execute("UPDATE remanescentes SET codigo = %s WHERE id = %s", (codigo_gerado, novo_id))
         conn.commit()
 
         # --- Gerar QR Code (versão para imprimir, com etiqueta) ---
@@ -172,13 +179,11 @@ if submitted:
         caminho_qr = f"qrcodes/{codigo_gerado}.png"
         etiqueta.save(caminho_qr)
 
-        # Guarda o código do último remanescente guardado, para o mostrar
-        # depois do "rerun" (os campos do formulário limpam-se ao mesmo tempo)
         st.session_state["ultimo_codigo"] = codigo_gerado
         st.session_state["limpar_formulario"] = True
         st.rerun()
 
-# --- Mostra o resultado do último remanescente guardado (QR code + imprimir) ---
+# --- Mostra o resultado do último remanescente guardado (QR code + imprimir + descarregar) ---
 if st.session_state.get("ultimo_codigo"):
     codigo_mostrar = st.session_state["ultimo_codigo"]
     caminho_qr = f"qrcodes/{codigo_mostrar}.png"
@@ -188,7 +193,15 @@ if st.session_state.get("ultimo_codigo"):
         st.image(caminho_qr, caption=f"QR Code - {codigo_mostrar}", width=250)
 
         with open(caminho_qr, "rb") as f:
-            img_base64 = base64.b64encode(f.read()).decode()
+            img_bytes = f.read()
+            img_base64 = base64.b64encode(img_bytes).decode()
+
+        st.download_button(
+            label="⬇️ Descarregar QR Code",
+            data=img_bytes,
+            file_name=f"{codigo_mostrar}.png",
+            mime="image/png"
+        )
 
         print_html = f"""
         <button onclick="imprimirQR()" style="padding:10px 20px; font-size:16px; cursor:pointer;">
@@ -214,7 +227,6 @@ st.header("Remanescentes em stock")
 pesquisa = st.text_input("Pesquisar (código, material, marca, designação, encomenda ou localização)")
 
 df = pd.read_sql_query("SELECT * FROM remanescentes WHERE ativo = 1", conn)
-
 df = df[["id", "codigo", "numero_encomenda", "material", "marca", "designacao",
          "comprimento", "altura", "espessura", "localizacao", "observacoes",
          "estado", "data_criacao", "data_uso", "ativo"]]
@@ -256,7 +268,7 @@ if st.button("Guardar alterações"):
     ids_removidos = ids_originais - ids_editados
     for id_remov in ids_removidos:
         cursor.execute(
-            "UPDATE remanescentes SET ativo = 0, data_uso = ? WHERE id = ?",
+            "UPDATE remanescentes SET ativo = 0, data_uso = %s WHERE id = %s",
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), int(id_remov))
         )
 
@@ -265,8 +277,8 @@ if st.button("Guardar alterações"):
             continue
         cursor.execute("""
             UPDATE remanescentes
-            SET material = ?, marca = ?, designacao = ?, numero_encomenda = ?, altura = ?, comprimento = ?, espessura = ?, localizacao = ?, observacoes = ?, estado = ?
-            WHERE id = ?
+            SET material = %s, marca = %s, designacao = %s, numero_encomenda = %s, altura = %s, comprimento = %s, espessura = %s, localizacao = %s, observacoes = %s, estado = %s
+            WHERE id = %s
         """, (linha["material"], linha["marca"], linha["designacao"], linha["numero_encomenda"], linha["altura"], linha["comprimento"],
               linha["espessura"], linha["localizacao"], linha["observacoes"], linha["estado"], int(linha["id"])))
 
