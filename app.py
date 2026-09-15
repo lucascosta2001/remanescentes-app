@@ -48,12 +48,12 @@ MARCAS_QUARTZO = ["Silestone", "RoyalStone", "Compac", "Outros"]
 MARCAS_CERAMICA = ["Dekton", "Ascale", "Neolith", "Outros"]
 ESTADOS = ["Disponível", "Reservado"]
 
-# Chaves dos campos do formulário de inserção, usadas para os limpar depois de guardar
-CAMPOS_FORMULARIO = [
-    "material_novo", "marca_novo", "designacao_novo", "encomenda_novo",
-    "altura_novo", "comprimento_novo", "espessura_novo",
-    "localizacao_novo", "estado_novo", "observacoes_novo"
-]
+# Contador que muda sempre que um remanescente é guardado, para forçar
+# os campos do formulário a nascerem sempre completamente novos (e vazios).
+if "form_version" not in st.session_state:
+    st.session_state.form_version = 0
+
+sufixo = st.session_state.form_version
 
 st.title("Ferramenta de Gestão de Stock")
 
@@ -86,45 +86,39 @@ if codigo_pesquisado:
 # =========================================================
 st.header("Inserir novo remanescente")
 
-if st.session_state.get("limpar_formulario"):
-    for chave in CAMPOS_FORMULARIO:
-        if chave in st.session_state:
-            del st.session_state[chave]
-    st.session_state["limpar_formulario"] = False
-
 with st.container(border=True):
     col_mat, col_marca = st.columns(2)
     with col_mat:
-        material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
+        material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key=f"material_{sufixo}")
     with col_marca:
         if material == "Quartzo":
-            marca = st.selectbox("Marca", MARCAS_QUARTZO, index=None, placeholder="Selecionar Marca", key="marca_novo")
+            marca = st.selectbox("Marca", MARCAS_QUARTZO, index=None, placeholder="Selecionar Marca", key=f"marca_{sufixo}")
         elif material == "Cerâmica":
-            marca = st.selectbox("Marca", MARCAS_CERAMICA, index=None, placeholder="Selecionar Marca", key="marca_novo")
+            marca = st.selectbox("Marca", MARCAS_CERAMICA, index=None, placeholder="Selecionar Marca", key=f"marca_{sufixo}")
         else:
-            marca = st.text_input("Marca", key="marca_novo")
+            marca = st.text_input("Marca", key=f"marca_{sufixo}")
 
     col_desig, col_encomenda = st.columns(2)
     with col_desig:
-        designacao = st.text_input("Designação", key="designacao_novo")
+        designacao = st.text_input("Designação", key=f"designacao_{sufixo}")
     with col_encomenda:
-        numero_encomenda = st.text_input("Order Number", key="encomenda_novo")
+        numero_encomenda = st.text_input("Order Number", key=f"encomenda_{sufixo}")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None, key="comprimento_novo")
+        comprimento = st.number_input("Comprimento (mm)", min_value=0, step=1, value=None, key=f"comprimento_{sufixo}")
     with col2:
-        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None, key="altura_novo")
+        altura = st.number_input("Altura (mm)", min_value=0, step=1, value=None, key=f"altura_{sufixo}")
     with col3:
-        espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None, key="espessura_novo")
+        espessura = st.number_input("Espessura (mm)", min_value=0, step=1, value=None, key=f"espessura_{sufixo}")
 
     col_loc, col_estado = st.columns(2)
     with col_loc:
-        localizacao = st.text_input("Localização", key="localizacao_novo")
+        localizacao = st.text_input("Localização", key=f"localizacao_{sufixo}")
     with col_estado:
-        estado = st.selectbox("Estado", ESTADOS, key="estado_novo")
+        estado = st.selectbox("Estado", ESTADOS, key=f"estado_{sufixo}")
 
-    observacoes = st.text_area("Observações", key="observacoes_novo")
+    observacoes = st.text_area("Observações", key=f"observacoes_{sufixo}")
 
     submitted = st.button("Guardar remanescente")
 
@@ -180,7 +174,7 @@ if submitted:
         etiqueta.save(caminho_qr)
 
         st.session_state["ultimo_codigo"] = codigo_gerado
-        st.session_state["limpar_formulario"] = True
+        st.session_state.form_version += 1
         st.rerun()
 
 # --- Mostra o resultado do último remanescente guardado (QR code + imprimir + descarregar) ---
