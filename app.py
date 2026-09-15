@@ -91,7 +91,7 @@ if st.session_state.get("limpar_formulario"):
 with st.container(border=True):
     col_mat, col_marca = st.columns(2)
     with col_mat:
-        material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
+               material = st.selectbox("Material", MATERIAIS, index=None, placeholder="Selecionar Material", key="material_novo")
     with col_marca:
         if material == "Quartzo":
             marca = st.selectbox("Marca", MARCAS_QUARTZO, key="marca_novo")
